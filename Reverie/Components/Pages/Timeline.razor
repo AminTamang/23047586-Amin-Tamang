@@ -1,0 +1,138 @@
+﻿@page "/timeline"
+@using Reverie.Models
+@using Reverie.Services
+@inject JournalService JournalService
+@inject NavigationManager Nav
+
+<h1>Timeline</h1>
+<p class="subtitle">Browse all your journal entries</p>
+
+<!-- Navigation -->
+<div class="nav-row">
+    <button class="secondary-btn" @onclick="GoToDashboard">🏠 Dashboard</button>
+    <button class="secondary-btn" @onclick="GoToCalendar">📅 Calendar</button>
+    <button class="secondary-btn" @onclick="GoToSettings">⚙️ Settings</button>
+</div>
+
+<!-- Filters -->
+<div class="timeline-filters">
+    <input class="search-input" placeholder="🔍 Search title or content..."
+           @bind="Keyword" @bind:event="oninput" />
+
+    <input class="search-input" type="date" @bind="FromDate" />
+    <input class="search-input" type="date" @bind="ToDate" />
+
+    <input class="search-input" placeholder="Mood filter"
+           @bind="MoodFilter" @bind:event="oninput" />
+
+    <input class="search-input" placeholder="Tag filter"
+           @bind="TagFilter" @bind:event="oninput" />
+
+    <button class="clear-btn" @onclick="ClearFilters">Clear</button>
+</div>
+
+<p class="results-count">
+    Showing @FilteredCount of @AllEntries.Count entries
+</p>
+
+<!-- Entries -->
+<div class="timeline-list">
+    @foreach (var entry in FilteredEntries)
+    {
+        <div class="entry-card"
+             style="cursor:pointer"
+             @onclick="@(() => Nav.NavigateTo($"/today/{entry.Date:yyyy-MM-dd}"))">
+
+            <div class="entry-main">
+                <h3>@entry.Title</h3>
+
+                <p class="entry-preview">
+                    @Shorten(entry.Content, 140)
+                </p>
+
+                <div class="entry-meta">
+                    <span>@entry.Date.ToString("MMM dd, yyyy")</span>
+                    <span class="chip green">@entry.PrimaryMood</span>
+
+                    @foreach (var tag in entry.Tags)
+                    {
+                        <span class="chip purple">@tag</span>
+                    }
+                </div>
+            </div>
+
+            <div class="entry-side">
+                <span class="word-count">@WordCount(entry.Content) words</span>
+            </div>
+        </div>
+    }
+</div>
+
+@if (!FilteredEntries.Any())
+{
+    <div class="alert alert-info mt-3">
+        No entries found for current filters.
+    </div>
+}
+
+@code {
+    List<JournalEntry> AllEntries = new();
+
+    string Keyword = "";
+    string MoodFilter = "";
+    string TagFilter = "";
+
+    DateTime? FromDate;
+    DateTime? ToDate;
+
+    protected override void OnInitialized()
+    {
+        AllEntries = JournalService.GetAll().ToList();
+    }
+
+    IEnumerable<JournalEntry> FilteredEntries =>
+        AllEntries
+            .Where(e =>
+                string.IsNullOrWhiteSpace(Keyword) ||
+                e.Title.Contains(Keyword, StringComparison.OrdinalIgnoreCase) ||
+                e.Content.Contains(Keyword, StringComparison.OrdinalIgnoreCase))
+            .Where(e =>
+                string.IsNullOrWhiteSpace(MoodFilter) ||
+                e.PrimaryMood.Contains(MoodFilter, StringComparison.OrdinalIgnoreCase) ||
+                e.SecondaryMoods.Any(m =>
+                    m.Contains(MoodFilter, StringComparison.OrdinalIgnoreCase)))
+            .Where(e =>
+                string.IsNullOrWhiteSpace(TagFilter) ||
+                e.Tags.Any(t =>
+                    t.Contains(TagFilter, StringComparison.OrdinalIgnoreCase)))
+            .Where(e => !FromDate.HasValue || e.Date.Date >= FromDate.Value.Date)
+            .Where(e => !ToDate.HasValue || e.Date.Date <= ToDate.Value.Date)
+            .OrderByDescending(e => e.Date);
+
+    int FilteredCount => FilteredEntries.Count();
+
+    void ClearFilters()
+    {
+        Keyword = "";
+        MoodFilter = "";
+        TagFilter = "";
+        FromDate = null;
+        ToDate = null;
+    }
+
+    string Shorten(string text, int max)
+        => string.IsNullOrWhiteSpace(text)
+            ? ""
+            : text.Length <= max
+                ? text
+                : text[..max] + "...";
+
+    int WordCount(string text)
+        => string.IsNullOrWhiteSpace(text)
+            ? 0
+            : text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+
+    void GoToDashboard() => Nav.NavigateTo("/");
+    void GoToCalendar() => Nav.NavigateTo("/calendar");
+    void GoToSettings() => Nav.NavigateTo("/settings");
+}

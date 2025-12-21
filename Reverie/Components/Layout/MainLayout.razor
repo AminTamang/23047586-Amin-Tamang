@@ -1,0 +1,35 @@
+﻿@inherits LayoutComponentBase
+
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            Reverie
+        </div>
+
+
+        <nav class="nav-menu">
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">
+                Dashboard
+            </NavLink>
+            <NavLink href="/today" class="nav-link">
+                Today's Entry
+            </NavLink>
+            <NavLink href="/calendar" class="nav-link">
+                Calendar
+            </NavLink>
+            <NavLink href="/timeline" class="nav-link">
+                Timeline
+            </NavLink>
+            <NavLink href="/settings" class="nav-link">
+                Settings
+            </NavLink>
+        </nav>
+
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+        @Body
+    </main>
+</div>

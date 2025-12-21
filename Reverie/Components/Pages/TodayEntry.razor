@@ -1,0 +1,203 @@
+﻿@page "/today"
+@page "/today/{DateParam}"
+@using Reverie.Services
+@using Reverie.Models
+@inject JournalService JournalService
+
+<h1 class="page-title">Today's Entry</h1>
+<p class="page-sub">@EntryDate.ToString("MMMM dd, yyyy (dddd)")</p>
+
+<div class="editor-layout">
+
+    <!-- MAIN EDITOR -->
+    <div class="editor-card">
+
+        <!-- HEADER ACTIONS -->
+        <div class="editor-header">
+            <div></div>
+            <div class="editor-actions">
+                <button class="primary-btn small" @onclick="Save">💾 Save</button>
+                <button class="danger-btn small" @onclick="Delete" disabled="@(!Exists)">🗑 Delete</button>
+            </div>
+        </div>
+
+        <!-- TITLE -->
+        <label>Title</label>
+        <input class="text-input" @bind="Title" placeholder="A productive day at work..." />
+
+        <!-- MOOD -->
+        <label>Mood</label>
+        <div class="mood-row">
+            <select class="mood-select" @bind="PrimaryMood">
+                <option value="">Primary (Required)</option>
+                @foreach (var m in AllMoods)
+                {
+                    <option>@m</option>
+                }
+            </select>
+
+            @foreach (var mood in SecondaryMoods)
+            {
+                <span class="mood-pill @MoodClass(mood)">
+                    @mood
+                    <button @onclick="() => RemoveSecondaryMood(mood)">✕</button>
+                </span>
+            }
+        </div>
+
+        <!-- CONTENT -->
+        <label>Content (Markdown)</label>
+
+        <div class="markdown-toolbar">
+            <button>B</button>
+            <button><i>I</i></button>
+            <button>H1</button>
+            <button>H2</button>
+            <button>• List</button>
+            <button>1. Num</button>
+            <button>🔗 Link</button>
+            <button>❝ Quote</button>
+            <button>&lt;/&gt;</button>
+        </div>
+
+        <textarea class="markdown-editor" @bind="Content"></textarea>
+
+    </div>
+
+    <!-- SIDE PANEL -->
+    <div class="side-card">
+        <h3>Tags</h3>
+
+        <div class="tags">
+            @foreach (var tag in Tags)
+            {
+                <span class="tag">
+                    @tag
+                    <button class="chip-close" @onclick="() => RemoveTag(tag)">✕</button>
+                </span>
+            }
+        </div>
+
+        <p class="sub">Available Tags</p>
+        <div class="tags">
+            @foreach (var tag in AvailableTags.Except(Tags))
+            {
+                <span class="tag ghost" @onclick="() => AddTag(tag)">@tag</span>
+            }
+        </div>
+
+        <label>Add Custom Tag</label>
+        <div class="add-tag">
+            <input class="text-input" @bind="TagInput" placeholder="New tag..." />
+            <button class="add-btn" @onclick="() => AddTag()">+</button>
+
+        </div>
+
+        <p class="meta">Created: @(CreatedAt == default ? "--" : CreatedAt.ToString("g"))</p>
+        <p class="meta">Updated: @(UpdatedAt == default ? "--" : UpdatedAt.ToString("g"))</p>
+
+        <div class="word-count">
+            ✍️ Word Count: <strong>@WordCount</strong>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter] public string? DateParam { get; set; }
+
+    DateTime EntryDate = DateTime.Today;
+
+    string Title = "";
+    string Content = "";
+    string PrimaryMood = "";
+    List<string> SecondaryMoods = new();
+    List<string> Tags = new();
+    string TagInput = "";
+
+    DateTime CreatedAt;
+    DateTime UpdatedAt;
+
+    bool Exists => JournalService.GetByDate(EntryDate) != null;
+
+    int WordCount => string.IsNullOrWhiteSpace(Content)
+        ? 0
+        : Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+
+    List<string> AllMoods = new()
+    {
+        "Happy","Grateful","Calm","Neutral","Sad","Stressed","Excited"
+    };
+
+    List<string> AvailableTags = new()
+    {
+        "Work","Health","Meditation","Travel","Family","Fitness","Personal","Career"
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(DateParam) &&
+            DateTime.TryParse(DateParam, out var parsed))
+            EntryDate = parsed.Date;
+
+        Load();
+    }
+
+    void Load()
+    {
+        var e = JournalService.GetByDate(EntryDate);
+        if (e == null) return;
+
+        Title = e.Title;
+        Content = e.Content;
+        PrimaryMood = e.PrimaryMood;
+        SecondaryMoods = new(e.SecondaryMoods);
+        Tags = new(e.Tags);
+        CreatedAt = e.CreatedAt;
+        UpdatedAt = e.UpdatedAt;
+    }
+
+    void Save()
+    {
+        JournalService.Save(new()
+        {
+            Date = EntryDate,
+            Title = Title,
+            Content = Content,
+            PrimaryMood = PrimaryMood,
+            SecondaryMoods = new(SecondaryMoods),
+            Tags = new(Tags)
+        });
+
+        var e = JournalService.GetByDate(EntryDate)!;
+        CreatedAt = e.CreatedAt;
+        UpdatedAt = e.UpdatedAt;
+    }
+
+    void Delete()
+    {
+        JournalService.Delete(EntryDate);
+        Title = Content = PrimaryMood = "";
+        Tags.Clear();
+        SecondaryMoods.Clear();
+    }
+
+    void AddTag(string? tag = null)
+    {
+        tag ??= TagInput.Trim();
+        if (!string.IsNullOrWhiteSpace(tag) && !Tags.Contains(tag))
+            Tags.Add(tag);
+        TagInput = "";
+    }
+
+    void RemoveTag(string tag) => Tags.Remove(tag);
+
+    void RemoveSecondaryMood(string m) => SecondaryMoods.Remove(m);
+
+    string MoodClass(string m) => m switch
+    {
+        "Happy" or "Grateful" => "positive",
+        "Calm" => "neutral",
+        _ => "negative"
+    };
+}

@@ -1,0 +1,117 @@
+﻿@page "/settings"
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject ThemeService Theme
+
+
+<h1>Settings</h1>
+<p class="subtitle">Customize your journal experience</p>
+
+<div class="nav-row">
+    <button class="secondary-btn" @onclick="GoToDashboard">🏠 Dashboard</button>
+    <button class="secondary-btn" @onclick="GoToCalendar">📅 Calendar</button>
+    <button class="secondary-btn" @onclick="GoToTimeline">📈 Timeline</button>
+</div>
+
+
+<div class="content">
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Customize your journal experience</p>
+
+    <!-- APPEARANCE -->
+    <div class="settings-card">
+        <h3>🎨 Appearance</h3>
+        <p class="section-desc">Choose your preferred theme</p>
+
+        <div class="theme-row">
+            <div class="theme-card @(CurrentTheme == "light" ? "active" : "")"
+                 @onclick="@(() => SetTheme("light"))">
+                <div class="theme-preview light"></div>
+                <span>Light</span>
+            </div>
+
+
+            <div class="theme-card @(CurrentTheme == "dark" ? "active" : "")"
+                 @onclick="@(() => SetTheme("dark"))">
+                <div class="theme-preview dark"></div>
+                <span>Dark</span>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- SECURITY -->
+    <div class="settings-card">
+        <h3>🔒 Security & Privacy</h3>
+        <p class="section-desc">Protect your journal entries</p>
+
+        <div class="setting-row">
+            <div>
+                <strong>Enable PIN Protection</strong>
+                <p class="muted">Require PIN to open the app</p>
+            </div>
+            <label class="switch">
+                <input type="checkbox">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="setting-link">
+            Change PIN <span>→</span>
+        </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="settings-card">
+        <h3>📤 Export & Backup</h3>
+        <p class="section-desc">Export your journal entries</p>
+
+        <div class="export-row">
+            <input type="date" class="text-input">
+            <input type="date" class="text-input">
+            <button class="primary-btn small">📄 Export PDF</button>
+            <button class="secondary-btn">💾 Backup</button>
+        </div>
+    </div>
+
+    <!-- DATA -->
+    <div class="settings-card">
+        <h3>🗂 Data Management</h3>
+
+        <div class="data-row">
+            <button class="secondary-btn">Manage Tags</button>
+            <button class="danger-btn">Clear All Data</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    string CurrentTheme = "light";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            CurrentTheme = await JS.InvokeAsync<string>("theme.load");
+            StateHasChanged();
+        }
+    }
+
+    async Task SetTheme(string theme)
+    {
+        CurrentTheme = theme;
+        await JS.InvokeVoidAsync("theme.set", theme);
+    }
+    private void GoToDashboard(MouseEventArgs args)
+    {
+        throw new NotImplementedException();
+    }
+    private void GoToCalendar(MouseEventArgs args)
+    {
+        throw new NotImplementedException();
+    }
+    private void GoToTimeline(MouseEventArgs args)
+    {
+        throw new NotImplementedException();
+    }
+}

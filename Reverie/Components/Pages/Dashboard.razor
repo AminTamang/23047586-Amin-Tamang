@@ -1,0 +1,69 @@
+﻿@page "/"
+@using Reverie.Services
+@inject NavigationManager Navigation
+@inject JournalService JournalService
+
+<h1>Dashboard</h1>
+
+<!-- Top Stats -->
+<div class="stats-row">
+    <div class="stat-card">
+        <h3>Current Streak</h3>
+        <p class="stat-value green">
+            @JournalService.GetCurrentStreak() days 🔥
+        </p>
+    </div>
+
+    <div class="stat-card">
+        <h3>Longest Streak</h3>
+        <p class="stat-value purple">28 days</p>
+    </div>
+
+    <div class="stat-card">
+        <h3>Missed Days</h3>
+        <p class="stat-value red">3 days</p>
+    </div>
+</div>
+
+<!-- Primary Action -->
+<button class="primary-btn" @onclick="GoToToday">
+    + Write Today's Entry
+</button>
+
+<!-- Navigation Row -->
+<div class="nav-row">
+    <button class="secondary-btn" @onclick="GoToCalendar">📅 Calendar</button>
+    <button class="secondary-btn" @onclick="GoToTimeline">📈 Timeline</button>
+    <button class="secondary-btn" @onclick="GoToSettings">⚙️ Settings</button>
+</div>
+
+<!-- Middle Row -->
+<div class="grid-2">
+    <div class="card">
+        <h3>Mood Distribution</h3>
+        <div class="placeholder">[ Donut Chart Placeholder ]</div>
+        <ul class="legend">
+            <li>Positive 45%</li>
+            <li>Neutral 30%</li>
+            <li>Negative 25%</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Most Used Tags</h3>
+        <div class="placeholder">[ Bar Chart Placeholder ]</div>
+    </div>
+</div>
+
+<!-- Bottom Row -->
+<div class="card">
+    <h3>Word Count Trends</h3>
+    <div class="placeholder wide">[ Line Chart Placeholder ]</div>
+</div>
+
+@code {
+    void GoToToday() => Navigation.NavigateTo("/today");
+    void GoToCalendar() => Navigation.NavigateTo("/calendar");
+    void GoToTimeline() => Navigation.NavigateTo("/timeline");
+    void GoToSettings() => Navigation.NavigateTo("/settings");
+}

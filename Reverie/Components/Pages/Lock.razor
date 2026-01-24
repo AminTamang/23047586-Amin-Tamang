@@ -1,0 +1,114 @@
+﻿@page "/lock"
+@inject NavigationManager Nav
+@inject Reverie.Services.LockService LockService
+
+<div class="rv-lock">
+    <div class="rv-lock-left"></div>
+
+    <div class="rv-lock-right">
+        <div class="rv-lock-logo">📖</div>
+
+        <div class="rv-lock-title">Reverie</div>
+        <div class="rv-lock-sub">Enter PIN to unlock</div>
+
+        <div class="rv-pin-dots">
+            @for (int i = 0; i < 4; i++)
+            {
+                <span class="pin-dot @(i < Pin.Length ? "filled" : "")"></span>
+            }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <div class="rv-lock-error">@Error</div>
+        }
+
+        <div class="rv-keypad">
+            @for (int i = 1; i <= 9; i++)
+            {
+                var s = i.ToString();
+                <button class="rv-key" @onclick="() => Press(s)">@s</button>
+            }
+
+            <button class="rv-key" onclick="Backspace()">◀</button>
+            <button class="rv-key" onclick="Press('0')">0</button>
+            <button class="rv-key rv-key-ok" onclick="Submit()">✓</button>
+        </div>
+
+        <button class="rv-forgot" type="button" @onclick="ForgotPin">Forgot PIN?</button>
+    </div>
+</div>
+
+@code {
+    private string Pin = "";
+    private string Error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if PIN is even enabled
+        var pinEnabled = await LockService.IsPinEnabledAsync();
+        if (!pinEnabled)
+        {
+            // Skip lock screen if PIN not enabled
+            Nav.NavigateTo("/dashboard", replace: true);
+            return;
+        }
+    }
+
+    private void Press(string digit)
+    {
+        Error = "";
+
+        if (Pin.Length >= 4)
+            return;
+
+        Pin += digit;
+
+        // Auto-submit when 4 digits entered
+        if (Pin.Length == 4)
+        {
+            _ = Submit();
+        }
+    }
+
+    private void Backspace()
+    {
+        Error = "";
+
+        if (Pin.Length == 0)
+            return;
+
+        Pin = Pin.Substring(0, Pin.Length - 1);
+    }
+
+    private async Task Submit()
+    {
+        if (Pin.Length != 4)
+        {
+            Error = "Enter 4 digits";
+            return;
+        }
+
+        var ok = await LockService.VerifyPinAsync(Pin);
+        if (!ok)
+        {
+            Error = "Wrong PIN";
+            Pin = "";
+            return;
+        }
+
+        // Navigate to dashboard
+        Nav.NavigateTo("/dashboard", replace: true);
+    }
+
+    private async Task ForgotPin()
+    {
+        // Clear PIN and disable protection
+        await LockService.ClearPinAsync();
+        Error = "PIN cleared. You can now access the app.";
+
+        // Small delay before redirect
+        await Task.Delay(1500);
+        Nav.NavigateTo("/dashboard", replace: true);
+    }
+}

@@ -1,0 +1,45 @@
+﻿@page "/loading"
+@inject NavigationManager Nav
+@inject Reverie.Services.LockService LockService
+@inject IJSRuntime JS
+
+<div class="rv-loading">
+    <div class="rv-loading-left"></div>
+
+    <div class="rv-loading-right">
+        <div class="rv-loading-logo">
+            <div class="rv-loading-logo-inner">📖</div>
+        </div>
+
+        <div class="rv-loading-title">Reverie</div>
+        <div class="rv-loading-sub">Every thought deserves a home</div>
+
+        <div class="rv-loading-dots" aria-label="Loading">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot active"></span>
+        </div>
+
+        <div class="rv-loading-text">Loading...</div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // load theme if your theme.js supports it (optional, safe)
+        try { await JS.InvokeAsync<string>("theme.load"); } catch { }
+
+        // small delay so the loading screen is visible
+        await Task.Delay(900);
+
+        var hasPin = await LockService.HasPinAsync();
+
+        if (hasPin && !LockService.IsUnlockedThisSession())
+            Nav.NavigateTo("/lock", replace: true);
+        else
+            Nav.NavigateTo("/dashboard", replace: true);
+    }
+}

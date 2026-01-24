@@ -8,6 +8,7 @@ namespace Reverie.Models;
 
 public class JournalEntry
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public DateTime Date { get; set; }
     public string Title { get; set; } = "";
     public string Content { get; set; } = "";

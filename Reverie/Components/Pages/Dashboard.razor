@@ -1,69 +1,111 @@
-﻿@page "/"
-@using Reverie.Services
-@inject NavigationManager Navigation
-@inject JournalService JournalService
+﻿@page "/dashboard"
+@using Reverie.Models
+@inject Reverie.Services.DashboardService DashboardService
+@inject NavigationManager Nav
 
-<h1>Dashboard</h1>
+<div class="rv-dashboard">
+    <div class="rv-topbar">
+        <h1 class="rv-title">Dashboard</h1>
 
-<!-- Top Stats -->
-<div class="stats-row">
-    <div class="stat-card">
-        <h3>Current Streak</h3>
-        <p class="stat-value green">
-            @JournalService.GetCurrentStreak() days 🔥
-        </p>
+        <select class="rv-select"
+                @bind="SelectedRange"
+                @bind:after="Reload">
+            <option>Last 7 days</option>
+            <option>Last 30 days</option>
+            <option>Last 90 days</option>
+        </select>
     </div>
 
-    <div class="stat-card">
-        <h3>Longest Streak</h3>
-        <p class="stat-value purple">28 days</p>
+    <div class="rv-cards">
+        <div class="rv-card">
+            <div class="rv-card-label">Current Streak</div>
+            <div class="rv-card-value rv-green">@Summary.CurrentStreakDays <span class="rv-card-unit">days 🔥</span></div>
+        </div>
+
+        <div class="rv-card">
+            <div class="rv-card-label">Longest Streak</div>
+            <div class="rv-card-value rv-purple">@Summary.LongestStreakDays <span class="rv-card-unit">days</span></div>
+        </div>
+
+        <div class="rv-card">
+            <div class="rv-card-label">Missed Days</div>
+            <div class="rv-card-value rv-red">@Summary.MissedDays <span class="rv-card-unit">days</span></div>
+        </div>
     </div>
 
-    <div class="stat-card">
-        <h3>Missed Days</h3>
-        <p class="stat-value red">3 days</p>
+    <button class="rv-cta" @onclick="GoToTodayEntry">+ Write Today's Entry</button>
+
+    <div class="rv-grid-2">
+        <div class="rv-panel">
+            <div class="rv-panel-title">Mood Distribution</div>
+
+            <div class="rv-mood">
+                <div class="rv-mood-legend">
+                    <div class="rv-legend-row"><span class="rv-dot rv-dot-pos"></span> Positive @Summary.PositivePercent%</div>
+                    <div class="rv-legend-row"><span class="rv-dot rv-dot-neu"></span> Neutral @Summary.NeutralPercent%</div>
+                    <div class="rv-legend-row"><span class="rv-dot rv-dot-neg"></span> Negative @Summary.NegativePercent%</div>
+                </div>
+
+                <div class="rv-donut"
+                     style="--pos:@Summary.PositivePercent; --neu:@Summary.NeutralPercent; --neg:@Summary.NegativePercent;">
+                </div>
+            </div>
+        </div>
+
+        <div class="rv-panel">
+            <div class="rv-panel-title">Most Used Tags</div>
+
+            <div class="rv-tags">
+                @foreach (var t in Summary.TopTags)
+                {
+                    var max = Summary.TopTags.Max(x => x.Count);
+                    var pct = max == 0 ? 0 : (int)Math.Round((t.Count * 100.0) / max);
+
+                    <div class="rv-tag-row">
+                        <div class="rv-bar">
+                            <div class="rv-bar-fill" style="width:@pct%; background:@t.ColorHex"></div>
+                        </div>
+                        <div class="rv-tag-text">@t.Name (@t.Count)</div>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
-</div>
 
-<!-- Primary Action -->
-<button class="primary-btn" @onclick="GoToToday">
-    + Write Today's Entry
-</button>
+    <div class="rv-panel rv-panel-wide">
+        <div class="rv-panel-title">Word Count Trends</div>
 
-<!-- Navigation Row -->
-<div class="nav-row">
-    <button class="secondary-btn" @onclick="GoToCalendar">📅 Calendar</button>
-    <button class="secondary-btn" @onclick="GoToTimeline">📈 Timeline</button>
-    <button class="secondary-btn" @onclick="GoToSettings">⚙️ Settings</button>
-</div>
-
-<!-- Middle Row -->
-<div class="grid-2">
-    <div class="card">
-        <h3>Mood Distribution</h3>
-        <div class="placeholder">[ Donut Chart Placeholder ]</div>
-        <ul class="legend">
-            <li>Positive 45%</li>
-            <li>Neutral 30%</li>
-            <li>Negative 25%</li>
-        </ul>
+        <div class="rv-trend">
+            @foreach (var w in Summary.WordCounts)
+            {
+                <div class="rv-trend-bar" title="@w words" style="height:@GetHeight(w)px"></div>
+            }
+        </div>
     </div>
-
-    <div class="card">
-        <h3>Most Used Tags</h3>
-        <div class="placeholder">[ Bar Chart Placeholder ]</div>
-    </div>
-</div>
-
-<!-- Bottom Row -->
-<div class="card">
-    <h3>Word Count Trends</h3>
-    <div class="placeholder wide">[ Line Chart Placeholder ]</div>
 </div>
 
 @code {
-    void GoToToday() => Navigation.NavigateTo("/today");
-    void GoToCalendar() => Navigation.NavigateTo("/calendar");
-    void GoToTimeline() => Navigation.NavigateTo("/timeline");
-    void GoToSettings() => Navigation.NavigateTo("/settings");
+    private string SelectedRange = "Last 30 days";
+    private Reverie.Models.DashboardSummary Summary = new();
+
+    protected override void OnInitialized()
+    {
+        Summary = DashboardService.GetSummary(SelectedRange);
+    }
+
+    private void Reload()
+    {
+        Summary = DashboardService.GetSummary(SelectedRange);
+    }
+
+    private void GoToTodayEntry()
+    {
+        Nav.NavigateTo("/todayentry");
+    }
+
+    private int GetHeight(int words)
+    {
+        var h = (int)Math.Round(words / 2.0);
+        return Math.Clamp(h, 20, 120);
+    }
 }

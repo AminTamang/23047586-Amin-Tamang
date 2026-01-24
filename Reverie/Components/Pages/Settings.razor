@@ -1,8 +1,7 @@
 ﻿@page "/settings"
 @inject IJSRuntime JS
 @inject NavigationManager Nav
-@inject ThemeService Theme
-
+@inject Reverie.Services.LockService LockService
 
 <h1>Settings</h1>
 <p class="subtitle">Customize your journal experience</p>
@@ -12,7 +11,6 @@
     <button class="secondary-btn" @onclick="GoToCalendar">📅 Calendar</button>
     <button class="secondary-btn" @onclick="GoToTimeline">📈 Timeline</button>
 </div>
-
 
 <div class="content">
     <h1 class="page-title">Settings</h1>
@@ -30,36 +28,60 @@
                 <span>Light</span>
             </div>
 
-
             <div class="theme-card @(CurrentTheme == "dark" ? "active" : "")"
                  @onclick="@(() => SetTheme("dark"))">
                 <div class="theme-preview dark"></div>
                 <span>Dark</span>
             </div>
-
         </div>
     </div>
 
-    <!-- SECURITY -->
-    <div class="settings-card">
-        <h3>🔒 Security & Privacy</h3>
-        <p class="section-desc">Protect your journal entries</p>
+<!-- SECURITY -->
+<div class="settings-card">
+    <h3>🔒 Security & Privacy</h3>
+    <p class="section-desc">Protect your journal entries</p>
 
-        <div class="setting-row">
-            <div>
-                <strong>Enable PIN Protection</strong>
-                <p class="muted">Require PIN to open the app</p>
-            </div>
+    <div class="setting-row">
+        <div>
+            <strong>Enable PIN Protection</strong>
+            <p class="muted">Require PIN to open the app</p>
+        </div>
+
             <label class="switch">
-                <input type="checkbox">
+                <input type="checkbox" @bind="PinEnabled" />
                 <span class="slider"></span>
             </label>
-        </div>
+    </div>
 
-        <div class="setting-link">
+    @if (PinEnabled)
+    {
+        <div class="setting-link" @onclick="ShowPinEditor">
             Change PIN <span>→</span>
         </div>
-    </div>
+
+        @if (ShowPinSetup)
+        {
+            <div class="pin-box">
+                <div class="pin-row">
+                    <input class="text-input" maxlength="4" inputmode="numeric" placeholder="New PIN (4 digits)"
+                           @bind="NewPin" @bind:event="oninput" />
+                    <input class="text-input" maxlength="4" inputmode="numeric" placeholder="Confirm PIN"
+                           @bind="ConfirmPin" @bind:event="oninput" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(PinMsg))
+                {
+                    <div class="pin-msg">@PinMsg</div>
+                }
+
+                <div class="pin-actions">
+                    <button class="primary-btn" @onclick="SavePin">Save PIN</button>
+                    <button class="secondary-btn" @onclick="CancelPin">Cancel</button>
+                </div>
+            </div>
+        }
+    }
+</div>
 
     <!-- EXPORT -->
     <div class="settings-card">
@@ -87,14 +109,16 @@
 
 @code {
     string CurrentTheme = "light";
+    bool PinEnabled = false;
+    bool ShowPinSetup = false;
+    string NewPin = "";
+    string ConfirmPin = "";
+    string PinMsg = "";
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender)
-        {
-            CurrentTheme = await JS.InvokeAsync<string>("theme.load");
-            StateHasChanged();
-        }
+        // Check if PIN is enabled
+        PinEnabled = await LockService.IsPinEnabledAsync();
     }
 
     async Task SetTheme(string theme)
@@ -102,16 +126,83 @@
         CurrentTheme = theme;
         await JS.InvokeVoidAsync("theme.set", theme);
     }
-    private void GoToDashboard(MouseEventArgs args)
+
+    // FIXED: This handles the toggle
+    async Task OnPinToggleChanged()
     {
-        throw new NotImplementedException();
+        if (PinEnabled)
+        {
+            // User wants to ENABLE PIN
+            ShowPinSetup = true;
+            PinMsg = "Set a 4-digit PIN to enable protection.";
+        }
+        else
+        {
+            // User wants to DISABLE PIN
+            await LockService.SetPinEnabledAsync(false);
+            ShowPinSetup = false;
+            NewPin = "";
+            ConfirmPin = "";
+            PinMsg = "PIN protection disabled.";
+        }
+        StateHasChanged();
     }
-    private void GoToCalendar(MouseEventArgs args)
+
+    async Task SavePin()
     {
-        throw new NotImplementedException();
+        PinMsg = "";
+
+        if (NewPin.Length != 4 || ConfirmPin.Length != 4)
+        {
+            PinMsg = "PIN must be 4 digits.";
+            return;
+        }
+
+        if (NewPin != ConfirmPin)
+        {
+            PinMsg = "PINs don't match.";
+            return;
+        }
+
+        if (!NewPin.All(char.IsDigit))
+        {
+            PinMsg = "Only numbers allowed.";
+            return;
+        }
+
+        await LockService.SetPinAsync(NewPin);
+        PinEnabled = true;
+        ShowPinSetup = false;
+        NewPin = "";
+        ConfirmPin = "";
+        PinMsg = "PIN saved successfully!";
     }
-    private void GoToTimeline(MouseEventArgs args)
+
+    void CancelPin()
     {
-        throw new NotImplementedException();
+        ShowPinSetup = false;
+        NewPin = "";
+        ConfirmPin = "";
+        PinMsg = "";
+
+        // If they cancelled setting a PIN, turn toggle back off
+        if (!LockService.HasPinAsync().Result)
+        {
+            PinEnabled = false;
+        }
     }
+
+    void ShowPinEditor()
+    {
+        if (!PinEnabled)
+        {
+            PinMsg = "Enable PIN protection first.";
+            return;
+        }
+        ShowPinSetup = true;
+    }
+
+    void GoToDashboard() => Nav.NavigateTo("/dashboard");
+    void GoToCalendar() => Nav.NavigateTo("/calendar");
+    void GoToTimeline() => Nav.NavigateTo("/timeline");
 }

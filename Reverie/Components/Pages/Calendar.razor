@@ -4,181 +4,209 @@
 @inject JournalService JournalService
 @inject NavigationManager Nav
 
-<h1>Calendar</h1>
+<div class="rv-page">
+    <h1 class="rv-page-title">Calendar</h1>
 
-<div class="calendar-layout">
+    <div class="rv-cal-layout">
+        <!-- LEFT: CALENDAR CARD -->
+        <div class="rv-card rv-cal-card">
+            <div class="rv-cal-monthbar">
+                <button type="button" class="rv-cal-nav" @onclick="PrevMonth" aria-label="Previous month">◀</button>
+                <div class="rv-cal-month">@CurrentMonth.ToString("MMMM yyyy")</div>
+                <button type="button" class="rv-cal-nav" @onclick="NextMonth" aria-label="Next month">▶</button>
+            </div>
 
-    <!-- CALENDAR -->
-    <div class="calendar-card">
+            <div class="rv-cal-grid rv-cal-weekdays">
+                @foreach (var d in WeekDays)
+                {
+                    <div class="rv-cal-weekday">@d</div>
+                }
+            </div>
 
-        <div class="calendar-header">
-            <button class="nav-btn" @onclick="PrevMonth">◀</button>
-            <h2>@CurrentMonth.ToString("MMMM yyyy")</h2>
-            <button class="nav-btn" @onclick="NextMonth">▶</button>
+            <div class="rv-cal-grid rv-cal-days">
+                @foreach (var cell in Cells)
+                {
+                    if (cell.IsPadding)
+                    {
+                        <div class="rv-cal-cell rv-cal-empty"></div>
+                    }
+                    else
+                    {
+                        var date = cell.Date!.Value.Date;
+                        var dayEntry = JournalService.GetByDate(date);
+           @* renamed to avoid CS0136 *@
+
+                        var isSelected = date == Selected.Date;
+                        var isToday = date == DateTime.Today.Date;
+
+                        var moodClass = dayEntry is null ? "" : MoodClass(dayEntry.PrimaryMood);
+
+                        <button type="button"
+                                class="rv-cal-cell rv-cal-day @(isSelected ? "is-selected" : "") @(isToday ? "is-today" : "")"
+                                @onclick="() => SelectDay(date)"
+                                aria-label="@date.ToString("MMMM dd, yyyy")">
+
+                            <span class="rv-cal-daynum">@date.Day</span>
+
+                            @if (dayEntry is not null)
+                            {
+                                <span class="rv-cal-dot @moodClass"></span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+
+            <div class="rv-cal-legend">
+                <span class="rv-cal-legend-item"><span class="rv-cal-dot positive"></span> Positive</span>
+                <span class="rv-cal-legend-item"><span class="rv-cal-dot neutral"></span> Neutral</span>
+                <span class="rv-cal-legend-item"><span class="rv-cal-dot negative"></span> Negative</span>
+                <span class="rv-cal-legend-item"><span class="rv-cal-dot selected"></span> Selected/Today</span>
+            </div>
         </div>
 
-        <!-- Weekdays -->
-        <div class="calendar-grid header">
-            @foreach (var d in WeekDays)
+        <!-- RIGHT: DETAILS CARD -->
+        <div class="rv-card rv-cal-details">
+            @{
+                var selectedEntry = SelectedEntry;   @* renamed to avoid collision *@
+            }
+
+            @if (selectedEntry is null)
             {
-                <div class="weekday">@d</div>
+                <div class="rv-cal-details-head">
+                    <div class="rv-cal-details-date">Select a day</div>
+                    <div class="rv-cal-details-dow">—</div>
+                </div>
+
+                <div class="rv-cal-divider"></div>
+
+                <div class="rv-cal-details-title">No entry</div>
+                <div class="rv-cal-details-muted">Click a day to view entry details.</div>
+
+                <div class="rv-cal-details-actions">
+                    <button type="button" class="rv-btn rv-btn-save rv-full" disabled>Open Entry</button>
+                    <button type="button" class="rv-btn rv-btn-outline rv-full" disabled>Export as PDF</button>
+                </div>
+            }
+            else
+            {
+                <div class="rv-cal-details-head">
+                    <div class="rv-cal-details-date">@selectedEntry.Date.ToString("MMM dd, yyyy")</div>
+                    <div class="rv-cal-details-dow">@selectedEntry.Date.ToString("dddd")</div>
+                </div>
+
+                <div class="rv-cal-divider"></div>
+
+                <div class="rv-cal-details-title">@(!string.IsNullOrWhiteSpace(selectedEntry.Title) ? selectedEntry.Title : "Untitled")</div>
+
+                <div class="rv-cal-details-pillrow">
+                    <span class="rv-cal-moodpill @MoodPillClass(selectedEntry.PrimaryMood)">
+                        @selectedEntry.PrimaryMood
+                    </span>
+                </div>
+
+                <div class="rv-cal-details-tagrow">
+                    @foreach (var tag in (selectedEntry.Tags ?? new()))
+                    {
+                        <span class="rv-cal-tag">@tag</span>
+                    }
+                </div>
+
+                <div class="rv-cal-details-preview">
+                    @Shorten(selectedEntry.Content, 110)
+                </div>
+
+                <div class="rv-cal-details-meta">
+                    📝 <strong>@WordCount(selectedEntry.Content)</strong> words
+                </div>
+
+                <div class="rv-cal-details-actions">
+                    <button type="button" class="rv-btn rv-btn-save rv-full" @onclick="OpenEntry">Open Entry</button>
+                    <button type="button" class="rv-btn rv-btn-outline rv-full" disabled>Export as PDF</button>
+                </div>
             }
         </div>
-
-        <!-- Days -->
-        <div class="calendar-grid">
-            @foreach (var day in Days)
-            {
-                if (day == null)
-                {
-                    <div class="day empty"></div>
-                }
-                else
-                {
-                    var entry = GetEntry(day.Value);
-                    var isSelected = day.Value.Date == Selected.Date;
-
-                    <div class="day @(isSelected ? "selected" : "")"
-                         @onclick="() => SelectDay(day.Value)">
-
-                        <span class="number">@day.Value.Day</span>
-
-                        @if (entry != null)
-                        {
-                            <span class="dot @MoodClass(entry.PrimaryMood)"></span>
-                        }
-                    </div>
-                }
-            }
-        </div>
-
-        <!-- Legend -->
-        <div class="legend">
-            <span><span class="dot positive"></span> Positive</span>
-            <span><span class="dot neutral"></span> Neutral</span>
-            <span><span class="dot negative"></span> Negative</span>
-            <span><span class="dot selected"></span> Selected</span>
-        </div>
-
     </div>
-
-    <!-- DETAILS -->
-    <div class="details-card">
-
-        @if (SelectedEntry == null)
-        {
-            <h3>Select a day</h3>
-            <div class="entry-preview">
-                Click a day to view entry details.
-            </div>
-        }
-        else
-        {
-            <h3>@SelectedEntry.Date.ToString("MMM dd, yyyy")</h3>
-            <div class="sub">@SelectedEntry.Date.ToString("dddd")</div>
-
-            <div class="mood-pill @MoodClass(SelectedEntry.PrimaryMood)">
-                @SelectedEntry.PrimaryMood
-            </div>
-
-            <div class="tags">
-                @foreach (var tag in SelectedEntry.Tags)
-                {
-                    <span class="tag">@tag</span>
-                }
-            </div>
-
-            <div class="entry-preview">
-                @Shorten(SelectedEntry.Content, 120)
-            </div>
-
-            <div class="meta">
-                📝 @WordCount(SelectedEntry.Content) words
-            </div>
-        }
-
-        <button class="primary-btn full"
-                @onclick="OpenEntry"
-                disabled="@((SelectedEntry == null))">
-            Open Entry
-        </button>
-
-        <button class="outline-btn full"
-                disabled="@((SelectedEntry == null))">
-            Export as PDF
-        </button>
-
-    </div>
-
 </div>
 
-@code {
+@code
+{
+    record CalendarCell(DateTime? Date, bool IsPadding);
 
     DateTime CurrentMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     DateTime Selected = DateTime.Today;
 
-    List<JournalEntry> Entries = new();
-    List<DateTime?> Days = new();
+    readonly string[] WeekDays = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
-    string[] WeekDays = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    List<CalendarCell> Cells = new();
 
     protected override void OnInitialized()
     {
-        Entries = JournalService.GetAll().ToList();
         BuildCalendar();
         SelectDay(Selected);
     }
 
     void BuildCalendar()
     {
-        Days.Clear();
+        Cells.Clear();
 
         var first = new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1);
-        int offset = (int)first.DayOfWeek;
-        int totalDays = DateTime.DaysInMonth(CurrentMonth.Year, CurrentMonth.Month);
+        var last = first.AddMonths(1).AddDays(-1);
 
+        int offset = (int)first.DayOfWeek; // 0=Sun ... 6=Sat
         for (int i = 0; i < offset; i++)
-            Days.Add(null);
+            Cells.Add(new CalendarCell(null, true));
 
-        for (int d = 1; d <= totalDays; d++)
-            Days.Add(new DateTime(CurrentMonth.Year, CurrentMonth.Month, d));
+        for (var d = first; d <= last; d = d.AddDays(1))
+            Cells.Add(new CalendarCell(d, false));
+
+        int remainder = Cells.Count % 7;
+        if (remainder != 0)
+        {
+            int add = 7 - remainder;
+            for (int i = 0; i < add; i++)
+                Cells.Add(new CalendarCell(null, true));
+        }
     }
 
     void PrevMonth()
     {
         CurrentMonth = CurrentMonth.AddMonths(-1);
         BuildCalendar();
+
+        if (Selected.Month != CurrentMonth.Month || Selected.Year != CurrentMonth.Year)
+            Selected = new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1);
     }
 
     void NextMonth()
     {
         CurrentMonth = CurrentMonth.AddMonths(1);
         BuildCalendar();
+
+        if (Selected.Month != CurrentMonth.Month || Selected.Year != CurrentMonth.Year)
+            Selected = new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1);
     }
 
-    void SelectDay(DateTime day)
+    void SelectDay(DateTime day) => Selected = day.Date;
+
+    void OpenEntry() => Nav.NavigateTo($"/today/{Selected:yyyy-MM-dd}");
+
+    JournalEntry? SelectedEntry => JournalService.GetByDate(Selected);
+
+    string MoodClass(string mood) => (mood ?? "").ToLowerInvariant() switch
     {
-        Selected = day;
-    }
-
-    void OpenEntry()
-    {
-        if (SelectedEntry != null)
-            Nav.NavigateTo($"/today?date={Selected:yyyy-MM-dd}");
-    }
-
-    JournalEntry? SelectedEntry =>
-        Entries.FirstOrDefault(e => e.Date.Date == Selected.Date);
-
-    JournalEntry? GetEntry(DateTime date) =>
-        Entries.FirstOrDefault(e => e.Date.Date == date.Date);
-
-    string MoodClass(string mood) => mood.ToLower() switch
-    {
-        "happy" or "positive" => "positive",
-        "neutral" => "neutral",
-        "sad" or "negative" => "negative",
+        "happy" or "grateful" or "excited" or "positive" => "positive",
+        "calm" or "neutral" => "neutral",
+        "sad" or "stressed" or "negative" => "negative",
         _ => "neutral"
+    };
+
+    string MoodPillClass(string mood) => (mood ?? "").ToLowerInvariant() switch
+    {
+        "happy" or "grateful" or "excited" => "pill-green",
+        "calm" or "neutral" => "pill-orange",
+        "sad" or "stressed" => "pill-red",
+        _ => "pill-gray"
     };
 
     string Shorten(string text, int max) =>

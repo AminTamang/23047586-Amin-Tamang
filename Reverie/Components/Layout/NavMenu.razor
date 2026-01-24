@@ -6,32 +6,33 @@
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
-            </NavLink>
+<div class="sidebar">
+    <div class="brand-block">
+        <div class="brand-logo">
+            <div class="brand-logo-inner">R</div>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/today">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Today's Entry
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/calendar">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Calendar
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/timeline">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Timeline
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/settings">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Settings
-            </NavLink>
-        </div>
-    </nav>
+        <div class="brand-name">Reverie</div>
+    </div>
+
+    <div class="nav-menu">
+        <NavLink class="nav-item" href="/dashboard" Match="NavLinkMatch.All">
+            <span class="nav-ico">📊</span> Dashboard
+        </NavLink>
+
+        <NavLink class="nav-item" href="/today">
+            <span class="nav-ico">✍️</span> Today's Entry
+        </NavLink>
+
+        <NavLink class="nav-item" href="/calendar">
+            <span class="nav-ico">📅</span> Calendar
+        </NavLink>
+
+        <NavLink class="nav-item" href="/timeline">
+            <span class="nav-ico">🧾</span> Timeline
+        </NavLink>
+
+        <NavLink class="nav-item" href="/settings">
+            <span class="nav-ico">⚙️</span> Settings
+        </NavLink>
+    </div>
 </div>

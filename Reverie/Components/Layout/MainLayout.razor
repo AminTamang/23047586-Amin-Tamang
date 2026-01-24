@@ -1,31 +1,43 @@
 ﻿@inherits LayoutComponentBase
+@inject Reverie.Services.LockService LockService
+@inject NavigationManager Nav
 
 <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
-        <div class="brand">
-            Reverie
+        <div class="brand-block">
+            <div class="brand-logo">
+                <span class="brand-logo-inner">📓</span>
+            </div>
+            <div class="brand-name">Reverie</div>
         </div>
 
-
         <nav class="nav-menu">
-            <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">
-                Dashboard
+            <NavLink href="/dashboard" class="nav-item" Match="NavLinkMatch.All">
+                <span class="nav-ico">📊</span>
+                <span>Dashboard</span>
             </NavLink>
-            <NavLink href="/today" class="nav-link">
-                Today's Entry
+
+            <NavLink href="/today" class="nav-item">
+                <span class="nav-ico">✍️</span>
+                <span>Today's Entry</span>
             </NavLink>
-            <NavLink href="/calendar" class="nav-link">
-                Calendar
+
+            <NavLink href="/calendar" class="nav-item">
+                <span class="nav-ico">📅</span>
+                <span>Calendar</span>
             </NavLink>
-            <NavLink href="/timeline" class="nav-link">
-                Timeline
+
+            <NavLink href="/timeline" class="nav-item">
+                <span class="nav-ico">🗂️</span>
+                <span>Timeline</span>
             </NavLink>
-            <NavLink href="/settings" class="nav-link">
-                Settings
+
+            <NavLink href="/settings" class="nav-item nav-bottom">
+                <span class="nav-ico">⚙️</span>
+                <span>Settings</span>
             </NavLink>
         </nav>
-
     </aside>
 
     <!-- Main Content -->

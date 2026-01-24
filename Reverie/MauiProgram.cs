@@ -20,6 +20,10 @@ namespace Reverie
             // Register JournalService as singleton
             builder.Services.AddSingleton<JournalService>();
 
+            builder.Services.AddSingleton<Reverie.Services.LockService>();
+
+            builder.Services.AddSingleton<Reverie.Services.DashboardService>();
+
             builder.Services.AddScoped<ThemeService>();
 
 

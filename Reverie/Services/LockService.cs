@@ -11,9 +11,17 @@ public class LockService
 {
     private const string PinKey = "reverie.pin";
     private const string PinEnabledKey = "pin_enabled";
-    private bool _isUnlocked = false; // ADD THIS LINE
 
+    private bool _isUnlocked = false;
+    public event EventHandler<bool>? LockStateChanged;
     public int PinLength => 4;
+
+    // Initialize on service creation
+    public LockService()
+    {
+        // Always start locked - don't persist unlocked state across launches
+        _isUnlocked = false;
+    }
 
     // Check if PIN is enabled
     public async Task<bool> IsPinEnabledAsync()
@@ -37,7 +45,7 @@ public class LockService
 
         await SecureStorage.SetAsync(PinKey, pin);
         await SecureStorage.SetAsync(PinEnabledKey, "true");
-        _isUnlocked = true;
+        UnlockApp(); // Unlock after setting PIN
     }
 
     // Clear PIN and disable protection
@@ -45,7 +53,7 @@ public class LockService
     {
         SecureStorage.Remove(PinKey);
         await SecureStorage.SetAsync(PinEnabledKey, "false");
-        _isUnlocked = true;
+        UnlockApp(); // Unlock after clearing PIN
     }
 
     // Verify PIN
@@ -56,7 +64,7 @@ public class LockService
 
         if (isCorrect)
         {
-            _isUnlocked = true;
+            UnlockApp();
         }
 
         return isCorrect;
@@ -73,19 +81,37 @@ public class LockService
         {
             await SecureStorage.SetAsync(PinEnabledKey, "false");
             SecureStorage.Remove(PinKey);
-            _isUnlocked = true;
+            UnlockApp();
         }
     }
 
-    // ADD THIS METHOD
-    public bool IsUnlockedThisSession()
+    // Check if app is unlocked
+    public bool IsUnlocked()
     {
         return _isUnlocked;
     }
 
     // Lock the app
-    public void Lock()
+    public void LockApp()
     {
         _isUnlocked = false;
+        LockStateChanged?.Invoke(this, false);
+    }
+
+    // Unlock the app
+    private void UnlockApp()
+    {
+        _isUnlocked = true;
+        LockStateChanged?.Invoke(this, true);
+    }
+
+    // Check if should show lock screen
+    public async Task<bool> ShouldShowLockAsync()
+    {
+        var hasPin = await HasPinAsync();
+        var pinEnabled = await IsPinEnabledAsync();
+
+        // Always show lock if PIN is enabled and app is not currently unlocked
+        return hasPin && pinEnabled && !_isUnlocked;
     }
 }

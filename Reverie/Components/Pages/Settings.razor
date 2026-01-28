@@ -2,6 +2,8 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject Reverie.Services.LockService LockService
+@inject Reverie.Services.JournalService JournalService
+@inject Reverie.Services.PDFExportService PDFExportService
 
 <h1>Settings</h1>
 <p class="subtitle">Customize your journal experience</p>
@@ -36,52 +38,52 @@
         </div>
     </div>
 
-<!-- SECURITY -->
-<div class="settings-card">
-    <h3>🔒 Security & Privacy</h3>
-    <p class="section-desc">Protect your journal entries</p>
+    <!-- SECURITY -->
+    <div class="settings-card">
+        <h3>🔒 Security & Privacy</h3>
+        <p class="section-desc">Protect your journal entries</p>
 
-    <div class="setting-row">
-        <div>
-            <strong>Enable PIN Protection</strong>
-            <p class="muted">Require PIN to open the app</p>
-        </div>
+        <div class="setting-row">
+            <div>
+                <strong>Enable PIN Protection</strong>
+                <p class="muted">Require PIN to open the app</p>
+            </div>
 
             <label class="switch">
-                <input type="checkbox" @bind="PinEnabled" />
+                <input type="checkbox" @bind="PinEnabled" @bind:event="onchange" />
                 <span class="slider"></span>
             </label>
-    </div>
-
-    @if (PinEnabled)
-    {
-        <div class="setting-link" @onclick="ShowPinEditor">
-            Change PIN <span>→</span>
         </div>
 
-        @if (ShowPinSetup)
+        @if (PinEnabled)
         {
-            <div class="pin-box">
-                <div class="pin-row">
-                    <input class="text-input" maxlength="4" inputmode="numeric" placeholder="New PIN (4 digits)"
-                           @bind="NewPin" @bind:event="oninput" />
-                    <input class="text-input" maxlength="4" inputmode="numeric" placeholder="Confirm PIN"
-                           @bind="ConfirmPin" @bind:event="oninput" />
-                </div>
-
-                @if (!string.IsNullOrWhiteSpace(PinMsg))
-                {
-                    <div class="pin-msg">@PinMsg</div>
-                }
-
-                <div class="pin-actions">
-                    <button class="primary-btn" @onclick="SavePin">Save PIN</button>
-                    <button class="secondary-btn" @onclick="CancelPin">Cancel</button>
-                </div>
+            <div class="setting-link" @onclick="ShowPinEditor">
+                Change PIN <span>→</span>
             </div>
+
+            @if (ShowPinSetup)
+            {
+                <div class="pin-box">
+                    <div class="pin-row">
+                        <input class="text-input" maxlength="4" inputmode="numeric" placeholder="New PIN (4 digits)"
+                               @bind="NewPin" @bind:event="oninput" />
+                        <input class="text-input" maxlength="4" inputmode="numeric" placeholder="Confirm PIN"
+                               @bind="ConfirmPin" @bind:event="oninput" />
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(PinMsg))
+                    {
+                        <div class="pin-msg">@PinMsg</div>
+                    }
+
+                    <div class="pin-actions">
+                        <button class="primary-btn" @onclick="SavePin">Save PIN</button>
+                        <button class="secondary-btn" @onclick="CancelPin">Cancel</button>
+                    </div>
+                </div>
+            }
         }
-    }
-</div>
+    </div>
 
     <!-- EXPORT -->
     <div class="settings-card">
@@ -89,11 +91,16 @@
         <p class="section-desc">Export your journal entries</p>
 
         <div class="export-row">
-            <input type="date" class="text-input">
-            <input type="date" class="text-input">
-            <button class="primary-btn small">📄 Export PDF</button>
-            <button class="secondary-btn">💾 Backup</button>
+            <input type="date" class="text-input" @bind="ExportStartDate" @bind:format="yyyy-MM-dd">
+            <input type="date" class="text-input" @bind="ExportEndDate" @bind:format="yyyy-MM-dd">
+            <button class="primary-btn small" @onclick="ExportDateRange">📄 Export PDF</button>
+            <button class="secondary-btn" @onclick="ExportAll">💾 Export All</button>
         </div>
+
+        @if (!string.IsNullOrWhiteSpace(ExportMessage))
+        {
+            <div class="export-message @ExportMessageClass">@ExportMessage</div>
+        }
     </div>
 
     <!-- DATA -->
@@ -114,6 +121,12 @@
     string NewPin = "";
     string ConfirmPin = "";
     string PinMsg = "";
+
+    // NEW: Export variables
+    private DateTime ExportStartDate = DateTime.Today.AddDays(-7);
+    private DateTime ExportEndDate = DateTime.Today;
+    private string ExportMessage = "";
+    private string ExportMessageClass = "export-success";
 
     protected override async Task OnInitializedAsync()
     {
@@ -200,6 +213,92 @@
             return;
         }
         ShowPinSetup = true;
+    }
+
+    // NEW: Export date range
+    private async Task ExportDateRange()
+    {
+        if (ExportStartDate > ExportEndDate)
+        {
+            ExportMessage = "Start date must be before end date.";
+            ExportMessageClass = "export-error";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var entries = JournalService.GetEntriesInRange(ExportStartDate, ExportEndDate);
+
+            if (!entries.Any())
+            {
+                ExportMessage = "No entries found in selected date range.";
+                ExportMessageClass = "export-error";
+                StateHasChanged();
+                return;
+            }
+
+            var title = $"Journal Entries {ExportStartDate:MMM dd} - {ExportEndDate:MMM dd, yyyy}";
+            var pdfBytes = PDFExportService.ExportEntries(entries, title);
+            var fileName = $"Journal_{ExportStartDate:yyyyMMdd}_to_{ExportEndDate:yyyyMMdd}.pdf";
+
+            await SaveAndOpenPDF(pdfBytes, fileName);
+
+            ExportMessage = $"Exported {entries.Count} entries successfully!";
+            ExportMessageClass = "export-success";
+        }
+        catch (Exception ex)
+        {
+            ExportMessage = $"Export failed: {ex.Message}";
+            ExportMessageClass = "export-error";
+        }
+
+        StateHasChanged();
+    }
+
+    // NEW: Export all entries
+    private async Task ExportAll()
+    {
+        try
+        {
+            var entries = JournalService.GetAll().ToList();
+
+            if (!entries.Any())
+            {
+                ExportMessage = "No journal entries found.";
+                ExportMessageClass = "export-error";
+                StateHasChanged();
+                return;
+            }
+
+            var title = $"Complete Journal Export - {DateTime.Now:MMMM dd, yyyy}";
+            var pdfBytes = PDFExportService.ExportEntries(entries, title);
+            var fileName = $"Journal_Complete_{DateTime.Now:yyyyMMdd}.pdf";
+
+            await SaveAndOpenPDF(pdfBytes, fileName);
+
+            ExportMessage = $"Exported all {entries.Count} entries successfully!";
+            ExportMessageClass = "export-success";
+        }
+        catch (Exception ex)
+        {
+            ExportMessage = $"Export failed: {ex.Message}";
+            ExportMessageClass = "export-error";
+        }
+
+        StateHasChanged();
+    }
+
+    // Helper method to save and open PDF
+    private async Task SaveAndOpenPDF(byte[] pdfBytes, string fileName)
+    {
+        var tempFilePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+        await File.WriteAllBytesAsync(tempFilePath, pdfBytes);
+
+        await Launcher.Default.OpenAsync(new OpenFileRequest
+        {
+            File = new ReadOnlyFile(tempFilePath)
+        });
     }
 
     void GoToDashboard() => Nav.NavigateTo("/dashboard");

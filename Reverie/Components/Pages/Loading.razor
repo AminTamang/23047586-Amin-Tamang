@@ -29,17 +29,29 @@
     {
         if (!firstRender) return;
 
-        // load theme if your theme.js supports it (optional, safe)
+        // Load theme if your theme.js supports it
         try { await JS.InvokeAsync<string>("theme.load"); } catch { }
 
-        // small delay so the loading screen is visible
+        // Small delay so the loading screen is visible
         await Task.Delay(900);
 
-        var hasPin = await LockService.HasPinAsync();
+        // FORCE lock check on every app launch
+        // Always ensure app is locked if PIN is enabled
+        if (await LockService.HasPinAsync() && await LockService.IsPinEnabledAsync())
+        {
+            LockService.LockApp(); // Reset to locked state on every launch
+        }
 
-        if (hasPin && !LockService.IsUnlockedThisSession())
+        // Check if we should show lock screen
+        var shouldShowLock = await LockService.ShouldShowLockAsync();
+
+        if (shouldShowLock)
+        {
             Nav.NavigateTo("/lock", replace: true);
+        }
         else
+        {
             Nav.NavigateTo("/dashboard", replace: true);
+        }
     }
 }

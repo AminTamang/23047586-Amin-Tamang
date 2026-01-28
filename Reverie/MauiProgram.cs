@@ -26,6 +26,9 @@ namespace Reverie
 
             builder.Services.AddScoped<ThemeService>();
 
+            builder.Services.AddSingleton<PDFExportService>();
+
+            builder.Services.AddSingleton<MarkdownService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

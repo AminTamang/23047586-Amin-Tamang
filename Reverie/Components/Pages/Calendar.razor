@@ -3,6 +3,8 @@
 @using Reverie.Services
 @inject JournalService JournalService
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject PDFExportService PDFExportService
 
 <div class="rv-page">
     <h1 class="rv-page-title">Calendar</h1>
@@ -34,7 +36,6 @@
                     {
                         var date = cell.Date!.Value.Date;
                         var dayEntry = JournalService.GetByDate(date);
-           @* renamed to avoid CS0136 *@
 
                         var isSelected = date == Selected.Date;
                         var isToday = date == DateTime.Today.Date;
@@ -68,7 +69,7 @@
         <!-- RIGHT: DETAILS CARD -->
         <div class="rv-card rv-cal-details">
             @{
-                var selectedEntry = SelectedEntry;   @* renamed to avoid collision *@
+                var selectedEntry = SelectedEntry;  
             }
 
             @if (selectedEntry is null)
@@ -122,7 +123,8 @@
 
                 <div class="rv-cal-details-actions">
                     <button type="button" class="rv-btn rv-btn-save rv-full" @onclick="OpenEntry">Open Entry</button>
-                    <button type="button" class="rv-btn rv-btn-outline rv-full" disabled>Export as PDF</button>
+                    <button type="button" class="rv-btn rv-btn-outline rv-full" @onclick="ExportSelectedEntry">Export Entry</button>
+                    <button type="button" class="rv-btn rv-btn-outline rv-full" @onclick="ExportMonth">Export Month</button>
                 </div>
             }
         </div>
@@ -192,6 +194,63 @@
     void OpenEntry() => Nav.NavigateTo($"/today/{Selected:yyyy-MM-dd}");
 
     JournalEntry? SelectedEntry => JournalService.GetByDate(Selected);
+
+    // NEW: Export selected entry
+    private async Task ExportSelectedEntry()
+    {
+        if (SelectedEntry is null) return;
+
+        try
+        {
+            var pdfBytes = PDFExportService.ExportEntry(SelectedEntry);
+            var fileName = $"Journal_{Selected:yyyyMMdd}.pdf";
+            await SaveAndOpenPDF(pdfBytes, fileName);
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
+        }
+    }
+
+    // NEW: Export entire month
+    private async Task ExportMonth()
+    {
+        try
+        {
+            var startDate = new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1);
+            var endDate = startDate.AddMonths(1).AddDays(-1);
+
+            var entries = JournalService.GetEntriesInRange(startDate, endDate);
+
+            if (!entries.Any())
+            {
+                await JS.InvokeVoidAsync("alert", "No entries found for this month.");
+                return;
+            }
+
+            var title = $"Journal Entries - {CurrentMonth:MMMM yyyy}";
+            var pdfBytes = PDFExportService.ExportEntries(entries, title);
+            var fileName = $"Journal_Month_{CurrentMonth:yyyyMM}.pdf";
+
+            await SaveAndOpenPDF(pdfBytes, fileName);
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
+        }
+    }
+
+    // Helper method to save and open PDF
+    private async Task SaveAndOpenPDF(byte[] pdfBytes, string fileName)
+    {
+        var tempFilePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+        await File.WriteAllBytesAsync(tempFilePath, pdfBytes);
+
+        await Launcher.Default.OpenAsync(new OpenFileRequest
+        {
+            File = new ReadOnlyFile(tempFilePath)
+        });
+    }
 
     string MoodClass(string mood) => (mood ?? "").ToLowerInvariant() switch
     {

@@ -240,46 +240,122 @@ public class DashboardService
     private List<int> GetWordCountTrends(List<JournalEntry> entries, (DateTime Start, DateTime End) range)
     {
         var result = new List<int>();
-        var daysInRange = (range.End - range.Start).Days + 1;
+        var totalDays = (range.End - range.Start).Days + 1;
 
-        if (daysInRange <= 0) return new List<int> { 0 };
+        // Handle edge cases
+        if (totalDays <= 0)
+            return new List<int> { 0 };
 
-        // Group entries by week for the chart
-        var entriesByWeek = new Dictionary<int, List<JournalEntry>>();
+        // Create a dictionary of word counts by date
+        var wordCountsByDate = new Dictionary<DateTime, int>();
 
         foreach (var entry in entries)
         {
-            var weekNum = (int)((entry.Date - range.Start).TotalDays / 7);
-            if (!entriesByWeek.ContainsKey(weekNum))
-                entriesByWeek[weekNum] = new List<JournalEntry>();
-            entriesByWeek[weekNum].Add(entry);
+            if (!wordCountsByDate.ContainsKey(entry.Date.Date))
+            {
+                wordCountsByDate[entry.Date.Date] = CalculateWordCount(entry.Content);
+            }
         }
 
-        // Calculate average word count per week
-        int maxWeeks = 8; // Show 8 bars max
-        for (int week = 0; week < maxWeeks; week++)
+        // For each day in the range, get the word count (0 if no entry)
+        var currentDate = range.Start;
+        while (currentDate <= range.End)
         {
-            if (entriesByWeek.ContainsKey(week))
+            if (wordCountsByDate.TryGetValue(currentDate.Date, out var wordCount))
             {
-                var weekEntries = entriesByWeek[week];
-                var avgWords = (int)weekEntries.Average(e =>
-                    string.IsNullOrWhiteSpace(e.Content) ? 0 : e.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
-                result.Add(avgWords);
+                result.Add(wordCount);
             }
             else
             {
                 result.Add(0);
             }
+
+            currentDate = currentDate.AddDays(1);
         }
 
-        // If we have no data, show some sample pattern
+        // If we have no data at all, show some sample data for demo
         if (result.All(r => r == 0))
         {
-            var rnd = new Random();
-            return new List<int> { 120, 180, 150, 240, 210, 300, 260, 340 };
+            return GenerateSampleData(totalDays);
+        }
+
+        // For large ranges (90 days), sample down to show reasonable number of bars
+        if (totalDays > 30)
+        {
+            return SampleDataForLargeRange(result, totalDays);
         }
 
         return result;
+    }
+
+    private int CalculateWordCount(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return 0;
+
+        // Simple word count by splitting on spaces
+        return content.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private List<int> GenerateSampleData(int days)
+    {
+        var sample = new List<int>();
+        var rnd = new Random();
+
+        // Generate realistic-looking sample data
+        for (int i = 0; i < days; i++)
+        {
+            // More likely to have entries on weekdays
+            var dayOfWeek = (int)DateTime.Today.AddDays(-i).DayOfWeek;
+            bool isWeekend = dayOfWeek == 0 || dayOfWeek == 6;
+
+            if (isWeekend)
+            {
+                // Weekends: 50% chance of entry, shorter entries
+                sample.Add(rnd.Next(0, 100) < 50 ? rnd.Next(50, 200) : 0);
+            }
+            else
+            {
+                // Weekdays: 80% chance of entry, longer entries
+                sample.Add(rnd.Next(0, 100) < 80 ? rnd.Next(150, 400) : 0);
+            }
+        }
+
+        return sample;
+    }
+
+    private List<int> SampleDataForLargeRange(List<int> dailyData, int totalDays)
+    {
+        var sampled = new List<int>();
+        var maxBars = 30; // Maximum bars to show
+
+        if (totalDays <= maxBars)
+            return dailyData;
+
+        var samplesPerBar = (int)Math.Ceiling(totalDays / (double)maxBars);
+
+        for (int i = 0; i < dailyData.Count; i += samplesPerBar)
+        {
+            var segment = dailyData.Skip(i).Take(samplesPerBar).ToList();
+            if (segment.Any(x => x > 0))
+            {
+                // Average of non-zero values, or 0 if all zeros
+                var nonZero = segment.Where(x => x > 0).ToList();
+                sampled.Add(nonZero.Any() ? (int)nonZero.Average() : 0);
+            }
+            else
+            {
+                sampled.Add(0);
+            }
+        }
+
+        // Ensure we have at least some bars
+        while (sampled.Count < 8)
+        {
+            sampled.Add(0);
+        }
+
+        return sampled;
     }
 
     private string GetTagColor(int index)

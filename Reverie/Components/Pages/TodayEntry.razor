@@ -5,9 +5,11 @@
 @inject JournalService JournalService
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject PDFExportService PDFExportService
+@inject MarkdownService MarkdownService
 
 <div class="rv-page">
-    <!-- DATE NAVIGATION BAR (UNCHANGED) -->
+    <!-- DATE NAVIGATION BAR -->
     <div class="rv-date-navigation">
         <button class="rv-nav-btn" @onclick="PreviousDay" title="Previous day">
             ◀
@@ -40,6 +42,14 @@
             <button class="rv-btn rv-btn-delete" @onclick="Delete" disabled="@(!Exists || IsSaving)">
                 🗑 Delete
             </button>
+
+            @if (Exists)
+            {
+                <button class="rv-btn rv-btn-export" @onclick="ExportToPDF"
+                        disabled="@(IsSaving || !Exists)" title="Export as PDF">
+                    📄 Export
+                </button>
+            }
 
             @if (ShowSaveSuccess)
             {
@@ -130,17 +140,16 @@
                         <u>U</u>
                     </button>
 
-                    <!-- Headings -->
-                    <div class="rv-tool-dropdown">
-                        <button type="button" class="rv-tool" title="Heading">
-                            H
-                        </button>
-                        <div class="rv-dropdown-content">
-                            <button type="button" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<h1>"))">Heading 1</button>
-                            <button type="button" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<h2>"))">Heading 2</button>
-                            <button type="button" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<p>"))">Normal Text</button>
-                        </div>
-                    </div>
+                    <!-- Headings - SIMPLIFIED -->
+                    <button type="button" class="rv-tool" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<h1>"))" title="Heading 1">
+                        H1
+                    </button>
+                    <button type="button" class="rv-tool" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<h2>"))" title="Heading 2">
+                        H2
+                    </button>
+                    <button type="button" class="rv-tool" @onclick="@(() => ExecuteFormatCommand("formatBlock", "<p>"))" title="Normal Text">
+                        P
+                    </button>
 
                     <!-- Lists -->
                     <button type="button" class="rv-tool" @onclick="@(() => ExecuteFormatCommand("insertUnorderedList"))" title="Bullet List">
@@ -161,7 +170,7 @@
                     </button>
                 </div>
 
-                <!-- RICH TEXT EDITOR (replaces textarea) -->
+                <!-- RICH TEXT EDITOR -->
                 <div id="richTextEditor"
                      class="rv-richtext-editor"
                      contenteditable="true"
@@ -169,7 +178,6 @@
                      @oninput="OnEditorInput"
                      @onkeydown="OnEditorKeyDown"
                      placeholder="Write about your day... Use the toolbar above to format your text.">
-                    @((MarkupString)EditorHtml)
                 </div>
 
                 <div class="rv-textarea-info">
@@ -180,7 +188,7 @@
             </div>
         </div>
 
-        <!-- RIGHT: TAGS / META (UNCHANGED) -->
+        <!-- RIGHT: TAGS / META -->
         <div class="rv-card">
             <h3 class="rv-side-title">Tags</h3>
 
@@ -244,8 +252,8 @@
     DateTime EntryDate = DateTime.Today;
 
     string Title = "";
-    string Content = "";
-    string EditorHtml = ""; // NEW: HTML for rich text editor
+    string Content = ""; // Stores MARKDOWN
+    string EditorHtml = ""; // Stores HTML for display
     string PrimaryMood = "Happy";
     List<string> SecondaryMoods = new();
     List<string> Tags = new();
@@ -261,9 +269,8 @@
     bool Exists => JournalService.GetByDate(EntryDate) != null;
     string PageTitle => Exists ? "Edit Entry" : "New Entry";
 
-    int WordCount => string.IsNullOrWhiteSpace(Content)
-        ? 0
-        : Content.Split(new[] { ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    // Use MarkdownService for accurate word count
+    int WordCount => MarkdownService.GetWordCount(Content);
 
     List<string> AllMoods = new()
     {
@@ -277,16 +284,26 @@
         "Career","Studies","Goals","Dreams","Ideas","Exercise","Food","Friends"
     };
 
-    // NEW: Setup keyboard shortcuts for rich text
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await SetupKeyboardShortcuts();
+
+            // Focus editor on new entry
+            if (!Exists)
+            {
+                await Task.Delay(100);
+                await JS.InvokeVoidAsync("eval", @"
+                    const editor = document.getElementById('richTextEditor');
+                    if (editor) {
+                        editor.focus();
+                    }
+                ");
+            }
         }
     }
 
-    // NEW: Keyboard shortcuts for formatting
     private async Task SetupKeyboardShortcuts()
     {
         await JS.InvokeVoidAsync("eval", @"
@@ -318,14 +335,12 @@
         ");
     }
 
-    // NEW: Execute rich text formatting command
     async Task ExecuteFormatCommand(string command, string? value = null)
     {
         await JS.InvokeVoidAsync("markdownHelper.executeCommand", command, value);
         await UpdateContentFromEditor();
     }
 
-    // NEW: Insert link dialog
     async Task InsertLink()
     {
         var url = await JS.InvokeAsync<string>("prompt", "Enter URL:", "https://");
@@ -339,39 +354,49 @@
         }
     }
 
-    // NEW: Update content from editor HTML
     async Task UpdateContentFromEditor()
     {
-        // Get HTML from editor
-        var html = await JS.InvokeAsync<string>("markdownHelper.getEditorHtml");
+        try
+        {
+            // Get HTML from editor
+            var html = await JS.InvokeAsync<string>("markdownHelper.getEditorHtml");
 
-        // Convert HTML to markdown for storage
-        Content = await JS.InvokeAsync<string>("markdownHelper.htmlToMarkdown", html);
-        EditorHtml = html;
+            // Convert HTML to markdown using MarkdownService
+            Content = MarkdownService.ToMarkdown(html);
 
-        // Update word count
-        await InvokeAsync(StateHasChanged);
+            // Keep EditorHtml in sync (optional, for display)
+            EditorHtml = html;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Update error: {ex.Message}");
+        }
     }
 
-    // NEW: Handle editor blur
     async Task OnEditorBlur()
     {
         await UpdateContentFromEditor();
     }
 
-    // NEW: Handle editor input
+    private DateTime _lastInput = DateTime.MinValue;
     async Task OnEditorInput()
     {
+        // Simple debounce - update at most every 300ms
+        if ((DateTime.Now - _lastInput).TotalMilliseconds < 300)
+            return;
+
+        _lastInput = DateTime.Now;
         await UpdateContentFromEditor();
     }
 
-    // NEW: Handle key down for Enter key to preserve formatting
     async Task OnEditorKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
         {
-            // Let the browser handle Enter normally
-            await Task.Delay(50); // Small delay to allow browser to insert new line
+            // Let browser handle Enter, then update
+            await Task.Delay(50);
             await UpdateContentFromEditor();
         }
     }
@@ -407,27 +432,33 @@
             Tags = new();
             CreatedAt = default;
             UpdatedAt = default;
+
+            // Clear editor
+            await JS.InvokeVoidAsync("markdownHelper.setEditorHtml", "");
             return;
         }
 
         Title = e.Title ?? "";
         Content = e.Content ?? "";
-        // Convert saved markdown to HTML for editor
+
+        // Convert saved markdown to HTML for editor using Markdig
         if (!string.IsNullOrWhiteSpace(Content))
         {
-            EditorHtml = await JS.InvokeAsync<string>("markdownHelper.markdownToHtml", Content);
+            EditorHtml = MarkdownService.ToHtml(Content);
+            await JS.InvokeVoidAsync("markdownHelper.setEditorHtml", EditorHtml);
         }
         else
         {
             EditorHtml = "";
+            await JS.InvokeVoidAsync("markdownHelper.setEditorHtml", "");
         }
+
         PrimaryMood = string.IsNullOrWhiteSpace(e.PrimaryMood) ? "Happy" : e.PrimaryMood;
         SecondaryMoods = e.SecondaryMoods?.ToList() ?? new();
         Tags = e.Tags?.ToList() ?? new();
         CreatedAt = e.CreatedAt;
         UpdatedAt = e.UpdatedAt;
 
-        // Trigger UI update
         await InvokeAsync(StateHasChanged);
     }
 
@@ -435,6 +466,9 @@
     {
         ShowPrimaryRequiredError = string.IsNullOrWhiteSpace(PrimaryMood);
         if (ShowPrimaryRequiredError) return;
+
+        // Make sure we have latest content
+        await UpdateContentFromEditor();
 
         if (string.IsNullOrWhiteSpace(Title) && string.IsNullOrWhiteSpace(Content))
         {
@@ -448,14 +482,11 @@
 
         try
         {
-            // Make sure we have the latest content
-            await UpdateContentFromEditor();
-
             JournalService.Save(new JournalEntry
             {
                 Date = EntryDate,
                 Title = Title,
-                Content = Content, // This is markdown
+                Content = Content, // Store as markdown
                 PrimaryMood = PrimaryMood,
                 SecondaryMoods = new(SecondaryMoods),
                 Tags = new(Tags)
@@ -498,6 +529,9 @@
             SecondaryMoods.Clear();
             CreatedAt = default;
             UpdatedAt = default;
+
+            // Clear editor
+            await JS.InvokeVoidAsync("markdownHelper.setEditorHtml", "");
         }
         finally
         {
@@ -505,6 +539,47 @@
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ExportToPDF()
+    {
+        try
+        {
+            IsSaving = true;
+
+            var entry = JournalService.GetByDate(EntryDate);
+            if (entry == null)
+            {
+                await JS.InvokeVoidAsync("alert", "No entry to export for this date.");
+                return;
+            }
+
+            var pdfBytes = PDFExportService.ExportEntry(entry);
+            var fileName = $"Journal_{EntryDate:yyyyMMdd}.pdf";
+
+            await SaveAndOpenPDF(pdfBytes, fileName);
+
+            await JS.InvokeVoidAsync("alert", $"Exported to {fileName}");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task SaveAndOpenPDF(byte[] pdfBytes, string fileName)
+    {
+        var tempFilePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+        await File.WriteAllBytesAsync(tempFilePath, pdfBytes);
+
+        await Launcher.Default.OpenAsync(new OpenFileRequest
+        {
+            File = new ReadOnlyFile(tempFilePath)
+        });
     }
 
     void AddTag(string? tag = null)
@@ -551,37 +626,37 @@
         Load();
     }
 
-    void BackToCalendar()
+    void BackToCalendar() => Nav.NavigateTo("/calendar");
+
+    // ADDED: Simple method for secondary mood pill colors
+    string SecondaryMoodPillClass(string mood)
     {
-        Nav.NavigateTo("/calendar");
+        mood = mood.ToLower();
+        if (mood.Contains("happy") || mood.Contains("grateful") || mood.Contains("excited") || mood.Contains("proud") || mood.Contains("hopeful"))
+            return "rv-pill-green";
+        if (mood.Contains("calm") || mood.Contains("neutral") || mood.Contains("content") || mood.Contains("peaceful"))
+            return "rv-pill-orange";
+        if (mood.Contains("sad") || mood.Contains("stressed") || mood.Contains("anxious") || mood.Contains("lonely"))
+            return "rv-pill-gray";
+        if (mood.Contains("angry"))
+            return "rv-pill-red";
+        return "rv-pill-purple";
     }
 
-    private async Task OnDateChanged(ChangeEventArgs e)
+    // ADDED: Simple method for tag colors
+    string TagColorClass(string tag)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var newDate))
-        {
-            EntryDate = newDate.Date;
-            Load();
-            await InvokeAsync(StateHasChanged);
-        }
+        tag = tag.ToLower();
+        if (tag.Contains("work") || tag.Contains("career"))
+            return "rv-tag-work";
+        if (tag.Contains("health") || tag.Contains("fitness") || tag.Contains("exercise"))
+            return "rv-tag-health";
+        if (tag.Contains("meditation") || tag.Contains("peaceful"))
+            return "rv-tag-meditation";
+        if (tag.Contains("family") || tag.Contains("friends"))
+            return "rv-tag-family";
+        if (tag.Contains("travel"))
+            return "rv-tag-travel";
+        return "rv-tag-generic";
     }
-
-    string SecondaryMoodPillClass(string m) => m.ToLowerInvariant() switch
-    {
-        "happy" or "grateful" or "excited" or "proud" or "hopeful" => "rv-pill-green",
-        "calm" or "neutral" or "content" or "peaceful" => "rv-pill-orange",
-        "sad" or "stressed" or "anxious" or "lonely" => "rv-pill-gray",
-        "angry" => "rv-pill-red",
-        _ => "rv-pill-purple"
-    };
-
-    string TagColorClass(string tag) => tag.ToLowerInvariant() switch
-    {
-        "work" or "career" => "rv-tag-work",
-        "health" or "fitness" or "exercise" => "rv-tag-health",
-        "meditation" or "peaceful" => "rv-tag-meditation",
-        "family" or "friends" => "rv-tag-family",
-        "travel" => "rv-tag-travel",
-        _ => "rv-tag-generic"
-    };
 }

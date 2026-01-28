@@ -81,6 +81,9 @@
                 <div class="rv-trend-bar" title="@w words" style="height:@GetHeight(w)px"></div>
             }
         </div>
+        <div class="rv-trend-footer">
+            <small>Showing @Summary.WordCounts.Count bars | Range: @SelectedRange</small>
+        </div>
     </div>
 </div>
 
@@ -100,12 +103,21 @@
 
     private void GoToTodayEntry()
     {
-        Nav.NavigateTo("/todayentry");
+        Nav.NavigateTo("/today");
     }
 
     private int GetHeight(int words)
     {
-        var h = (int)Math.Round(words / 2.0);
-        return Math.Clamp(h, 20, 120);
+        if (words == 0) return 20; // Minimum height for empty days
+
+        // Find max word count in current data for scaling
+        var maxWords = Summary.WordCounts.Any() ? Summary.WordCounts.Max() : 500;
+
+        // Scale: 20px min, up to 120px max
+        // Add a small buffer to ensure max words doesn't hit the absolute top
+        var scaledMax = Math.Max(maxWords, 100);
+        var height = 20 + (words * 100 / scaledMax);
+
+        return Math.Clamp(height, 20, 120);
     }
 }

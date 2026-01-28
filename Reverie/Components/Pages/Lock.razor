@@ -30,9 +30,9 @@
                 <button class="rv-key" @onclick="() => Press(s)">@s</button>
             }
 
-            <button class="rv-key" onclick="Backspace()">◀</button>
-            <button class="rv-key" onclick="Press('0')">0</button>
-            <button class="rv-key rv-key-ok" onclick="Submit()">✓</button>
+            <button class="rv-key" @onclick="Backspace">◀</button>
+            <button class="rv-key" @onclick="() => Press('0'.ToString())">0</button>
+            <button class="rv-key rv-key-ok" @onclick="Submit">✓</button>
         </div>
 
         <button class="rv-forgot" type="button" @onclick="ForgotPin">Forgot PIN?</button>
@@ -52,6 +52,12 @@
             // Skip lock screen if PIN not enabled
             Nav.NavigateTo("/dashboard", replace: true);
             return;
+        }
+
+        // If already unlocked, go to dashboard
+        if (LockService.IsUnlocked())
+        {
+            Nav.NavigateTo("/dashboard", replace: true);
         }
     }
 
